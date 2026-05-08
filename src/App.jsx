@@ -1,62 +1,37 @@
 import React, { useState } from 'react';
+import TrainingForm from './TrainingForm';
+import TrainingTable from './TrainingTable';
 import './App.css';
 
-// Парсим дату ДД.ММ.ГГ в объект Date для сортировки
-function parseDate(str) {
-  const [d, m, y] = str.split('.');
-  return new Date(`20${y}-${m}-${d}`);
-}
-
 const INITIAL_DATA = [
-  { id: 1, date: '20.07.2019', km: 5.7 },
-  { id: 2, date: '19.07.2019', km: 14.2 },
-  { id: 3, date: '18.07.2019', km: 3.4 },
+  { id: 1, date: '2019-07-20', km: 5.7 },
+  { id: 2, date: '2019-07-19', km: 14.2 },
+  { id: 3, date: '2019-07-18', km: 3.4 },
 ];
+
+function sortByDate(rows) {
+  return [...rows].sort((a, b) => new Date(b.date) - new Date(a.date));
+}
 
 export default function App() {
   const [rows, setRows] = useState(INITIAL_DATA);
-  const [date, setDate] = useState('');
-  const [km, setKm] = useState('');
   const [editId, setEditId] = useState(null);
+  const [editDate, setEditDate] = useState('');
+  const [editKm, setEditKm] = useState('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!date || !km) return;
-
-    const kmNum = parseFloat(km);
-    if (isNaN(kmNum)) return;
-
-    if (editId !== null) {
-      // Режим редактирования
+  const handleAdd = (date, km) => {
+    const existing = rows.find((r) => r.date === date);
+    if (existing) {
       setRows((prev) =>
-        prev.map((row) =>
-          row.id === editId ? { ...row, date, km: kmNum } : row,
-        ).sort((a, b) => parseDate(b.date) - parseDate(a.date)),
+        sortByDate(prev.map((r) =>
+          r.date === date ? { ...r, km: r.km + km } : r,
+        )),
       );
-      setEditId(null);
     } else {
-      // Проверяем есть ли уже такая дата
-      const existing = rows.find((r) => r.date === date);
-      if (existing) {
-        setRows((prev) =>
-          prev
-            .map((row) =>
-              row.date === date ? { ...row, km: row.km + kmNum } : row,
-            )
-            .sort((a, b) => parseDate(b.date) - parseDate(a.date)),
-        );
-      } else {
-        const newRow = { id: Date.now(), date, km: kmNum };
-        setRows((prev) =>
-          [...prev, newRow].sort(
-            (a, b) => parseDate(b.date) - parseDate(a.date),
-          ),
-        );
-      }
+      setRows((prev) =>
+        sortByDate([...prev, { id: Date.now(), date, km }]),
+      );
     }
-
-    setDate('');
-    setKm('');
   };
 
   const handleDelete = (id) => {
@@ -64,14 +39,21 @@ export default function App() {
   };
 
   const handleEdit = (row) => {
-    setDate(row.date);
-    setKm(String(row.km));
     setEditId(row.id);
+    setEditDate(row.date);
+    setEditKm(String(row.km));
   };
 
-  const handleCancel = () => {
-    setDate('');
-    setKm('');
+  const handleEditSave = (date, km) => {
+    setRows((prev) =>
+      sortByDate(prev.map((r) =>
+        r.id === editId ? { ...r, date, km } : r,
+      )),
+    );
+    setEditId(null);
+  };
+
+  const handleEditCancel = () => {
     setEditId(null);
   };
 
@@ -79,73 +61,25 @@ export default function App() {
     <div className="app">
       <h1>Учёт тренировок</h1>
 
-      <form className="form" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Дата (ДД.ММ.ГГ)</label>
-          <input
-            type="text"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            placeholder="20.07.19"
-            maxLength={8}
+      {editId ? (
+        <div>
+          <TrainingForm
+            onAdd={handleEditSave}
+            initialDate={editDate}
+            initialKm={editKm}
+            submitLabel="Сохранить"
           />
+          <button className="btn-cancel" onClick={handleEditCancel}>Отмена</button>
         </div>
-        <div className="form-group">
-          <label>Пройдено км</label>
-          <input
-            type="number"
-            value={km}
-            onChange={(e) => setKm(e.target.value)}
-            placeholder="0"
-            min="0"
-            step="0.1"
-          />
-        </div>
-        <button type="submit" className="btn-ok">
-          {editId !== null ? 'Сохранить' : 'OK'}
-        </button>
-        {editId !== null && (
-          <button type="button" className="btn-cancel" onClick={handleCancel}>
-            Отмена
-          </button>
-        )}
-      </form>
-
-      {rows.length > 0 && (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Дата (ДД.ММ.ГГ)</th>
-              <th>Пройдено км</th>
-              <th>Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td>{row.date}</td>
-                <td>{row.km}</td>
-                <td className="actions">
-                  <button
-                    className="btn-edit"
-                    onClick={() => handleEdit(row)}
-                    title="Редактировать"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    className="btn-delete"
-                    onClick={() => handleDelete(row.id)}
-                    title="Удалить"
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      ) : (
+        <TrainingForm onAdd={handleAdd} />
       )}
+
+      <TrainingTable
+        rows={rows}
+        onDelete={handleDelete}
+        onEdit={handleEdit}
+      />
     </div>
   );
 }
